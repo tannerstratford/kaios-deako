@@ -1,9 +1,9 @@
 {
   "name": "Deako Lights",
-  "version": "2.1",
+  "version": "2.2",
   "package_path": "https://tannerstratford.github.io/kaios-deako/Apps-directory/Deako-Lights/application.zip",
-  "packaged_size": 20314,
-  "size": 20314,
+  "packaged_size": 20557,
+  "size": 20557,
   "type": "web",
   "b2g_features": {
     "version": "1.0",

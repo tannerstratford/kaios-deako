@@ -88,33 +88,43 @@
         self.diag += "\nopen() ok, readyState=" + self.sock.readyState;
 
         var settled = false;
+        var t0 = Date.now();
+        // Longer than the OS TCP connect timeout so we see the real verdict:
+        // onopen (slow connect), onerror ETIMEDOUT (unreachable) / ECONNREFUSED.
         var t = setTimeout(function () {
           if (settled) return;
           settled = true;
           var rs = self.sock && self.sock.readyState;
-          self.diag += "\nno onopen/onerror in 7s, readyState=" + rs;
+          self.diag += "\nstill no event after 25s, readyState=" + rs;
           reject(new Error("connect timed out (readyState=" + rs + ")"));
-        }, 7000);
+        }, 25000);
 
-        self.sock.onopen = function () {
+        function onOpen() {
+          if (settled && self.open) return;
           self.open = true;
           clearTimeout(t);
-          self.diag += "\nonopen fired";
+          self.diag += "\nonopen fired after " + (Date.now() - t0) + "ms";
           self._startPing();
           if (!settled) { settled = true; resolve(); }
-        };
-        self.sock.ondata = function (e) { self._onData(e.data); };
-        self.sock.onerror = function (e) {
+        }
+        function onErr(e) {
           self.open = false;
-          var name = (e && e.data && (e.data.name || e.data.message)) || (e && e.name) || "socket error";
-          self.diag += "\nonerror: " + name;
+          var name = (e && e.data && (e.data.name || e.data.message)) || (e && (e.name || e.message)) || "socket error";
+          self.diag += "\nonerror after " + (Date.now() - t0) + "ms: " + name;
           clearTimeout(t);
           if (!settled) { settled = true; reject(new Error("socket error: " + name)); }
-        };
-        self.sock.onclose = function () {
-          self.open = false;
-          self._stopPing();
-        };
+        }
+        // Assign both ways: some b2g builds fire only the property handler,
+        // some only addEventListener.
+        self.sock.onopen = onOpen;
+        self.sock.onerror = onErr;
+        self.sock.ondata = function (e) { self._onData(e.data); };
+        self.sock.onclose = function () { self.open = false; self._stopPing(); };
+        try {
+          self.sock.addEventListener("open", onOpen);
+          self.sock.addEventListener("error", onErr);
+          self.sock.addEventListener("data", function (e) { self._onData(e.data); });
+        } catch (e) {}
       });
     },
 
