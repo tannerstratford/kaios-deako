@@ -266,9 +266,17 @@ function MenuView() {
       label: "Controller (HTTP)", sub: cfg.host,
       run: function () { push(AddrView("Controller", "Computer running app.py, IP:port", "host", cfg.host, /^\d+\.\d+\.\d+\.\d+:\d+$/)); },
     },
+    { label: "Diagnostics", sub: "Why TCP won't connect", run: function () { push(DiagView()); } },
     { head: true, label: "" },
     { label: "Exit", run: function () { window.close(); } },
   ]);
+}
+
+function DiagView() {
+  var lines = ("TCP diagnostics\n" + Deako.diag()).split("\n");
+  return ListView("Diagnostics", lines.map(function (l) {
+    return { label: l || " ", run: function () {} };
+  }));
 }
 
 function modeLabel(m) {

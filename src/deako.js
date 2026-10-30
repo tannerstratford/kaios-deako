@@ -59,34 +59,57 @@
       return "mozTCPSocket" in navigator;
     },
 
+    diag: "",   // last connect diagnostic, shown in Menu > Diagnostics
+
     connect: function (gateway) {
       var self = this;
       return new Promise(function (resolve, reject) {
-        if (!self.available()) return reject(new Error("no mozTCPSocket"));
+        self.diag = "mozTCPSocket in navigator: " + ("mozTCPSocket" in navigator) +
+          "\nnavigator.b2g: " + (typeof navigator.b2g) +
+          "\nb2g.TCPSocket: " + (navigator.b2g ? typeof navigator.b2g.TCPSocket : "n/a");
+        if (!self.available()) return reject(new Error("mozTCPSocket API not present"));
         var parts = gateway.split(":");
         var host = parts[0], port = parseInt(parts[1] || "23", 10);
+
+        // Open robustly: try the 3-arg options form, then 2-arg + binaryType prop.
+        self._reset();
         try {
-          self._reset();
           self.sock = navigator.mozTCPSocket.open(host, port, { binaryType: "string" });
-        } catch (e) { return reject(new Error("open failed: " + e.message)); }
+        } catch (e1) {
+          try {
+            self.sock = navigator.mozTCPSocket.open(host, port);
+            try { self.sock.binaryType = "string"; } catch (e) {}
+          } catch (e2) {
+            self.diag += "\nopen() threw: " + e1.message + " / " + e2.message;
+            return reject(new Error("open() threw: " + e2.message));
+          }
+        }
+        if (!self.sock) { self.diag += "\nopen() returned null"; return reject(new Error("open() returned null")); }
+        self.diag += "\nopen() ok, readyState=" + self.sock.readyState;
 
         var settled = false;
         var t = setTimeout(function () {
-          if (!settled) { settled = true; reject(new Error("connect timed out")); }
-        }, 6000);
+          if (settled) return;
+          settled = true;
+          var rs = self.sock && self.sock.readyState;
+          self.diag += "\nno onopen/onerror in 7s, readyState=" + rs;
+          reject(new Error("connect timed out (readyState=" + rs + ")"));
+        }, 7000);
 
         self.sock.onopen = function () {
           self.open = true;
           clearTimeout(t);
+          self.diag += "\nonopen fired";
           self._startPing();
           if (!settled) { settled = true; resolve(); }
         };
         self.sock.ondata = function (e) { self._onData(e.data); };
         self.sock.onerror = function (e) {
           self.open = false;
-          var msg = (e && e.data && e.data.name) || "socket error";
+          var name = (e && e.data && (e.data.name || e.data.message)) || (e && e.name) || "socket error";
+          self.diag += "\nonerror: " + name;
           clearTimeout(t);
-          if (!settled) { settled = true; reject(new Error(msg)); }
+          if (!settled) { settled = true; reject(new Error("socket error: " + name)); }
         };
         self.sock.onclose = function () {
           self.open = false;
@@ -272,6 +295,7 @@
     DEFAULT_HOST: DEFAULT_HOST,
 
     mode: function () { return active; },
+    diag: function () { return Tcp.diag || "(no TCP attempt yet)"; },
     label: function () {
       var c = Store.load();
       return active === "tcp" ? ("direct " + c.gateway) : active === "http" ? ("via " + c.host) : "not connected";
