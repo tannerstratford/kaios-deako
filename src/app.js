@@ -2,10 +2,15 @@
 // selected light, number keys 1-9 toggle the Nth light, left soft key is All
 // Off, right soft key opens the menu. Views are {title, render, key}; one
 // global keydown handler routes to whichever view is on top of the stack.
+//
+// The lights are reached through window.Deako, which connects either directly
+// over TCP to the Deako gateway (standalone, no computer) or via the HTTP
+// controller as a fallback. See deako.js.
 "use strict";
 
 var $ = function (id) { return document.getElementById(id); };
 var busy = false;
+var connected = false;
 var lights = [];        // last fetched device list
 var sel = 0;            // highlighted row index
 var viewStack = [];
@@ -50,7 +55,9 @@ var LightsView = {
   render: function (el) {
     softkeys("All Off", lights.length ? "Toggle" : "", "Menu");
     if (!lights.length) {
-      el.innerHTML = '<div class="empty">No lights.<br>Left soft key &gt; Controller address, then Refresh.</div>';
+      el.innerHTML = '<div class="empty">' +
+        (connected ? "No lights found." : "Not connected.") +
+        "<br>Right soft key &gt; Menu &gt; Connection.</div>";
       return;
     }
     var ul = document.createElement("ul");
@@ -92,30 +99,54 @@ function move(d) {
   show();
 }
 
-// ---------------------------------------------------------------- actions
+function renderStatus() {
+  var on = lights.filter(function (d) { return d.power; }).length;
+  status(lights.length + " lights · " + on + " on · " + Deako.label());
+}
+
+// ---------------------------------------------------------------- connection + actions
+
+function connectAndLoad() {
+  if (busy) return;
+  busy = true;
+  connected = false;
+  status("Connecting…");
+  Deako.connect().then(function () {
+    connected = true;
+    return Deako.devices();
+  }).then(function (list) {
+    lights = list || [];
+    if (sel >= lights.length) sel = Math.max(0, lights.length - 1);
+    renderStatus();
+    if (topView() === LightsView) show();
+  }).catch(function (err) {
+    connected = false;
+    status("Offline: " + err.message, false);
+    if (topView() === LightsView) show();
+  }).then(function () { busy = false; });
+}
 
 function refresh() {
   if (busy) return Promise.resolve();
-  status("Loading…");
-  return Deako.Api.devices().then(function (list) {
-    lights = list;
+  if (!connected) { connectAndLoad(); return Promise.resolve(); }
+  return Deako.devices().then(function (list) {
+    lights = list || [];
     if (sel >= lights.length) sel = Math.max(0, lights.length - 1);
-    var on = lights.filter(function (d) { return d.power; }).length;
-    status(lights.length + " lights · " + on + " on");
+    renderStatus();
     if (topView() === LightsView) show();
   }).catch(function (err) {
-    status("Offline: " + err.message + " (" + Deako.Api.host() + ")", false);
-    if (topView() === LightsView) show();
+    connected = false;
+    status("Lost connection: " + err.message, false);
   });
 }
 
 function toggle(d) {
-  if (busy) return;
+  if (busy || !connected) return;
   busy = true;
   var want = !d.power;
   d.power = want;                       // optimistic
   if (topView() === LightsView) show();
-  Deako.Api.control(d.uuid, want).then(function () {
+  Deako.control(d.uuid, want).then(function () {
     status(d.name + " → " + (want ? "On" : "Off"));
   }).catch(function (err) {
     d.power = !want;                    // revert on failure
@@ -123,29 +154,36 @@ function toggle(d) {
     if (topView() === LightsView) show();
   }).then(function () {
     busy = false;
-    setTimeout(refresh, 400);           // reconcile with real state
+    setTimeout(refresh, 500);           // reconcile with real state
   });
 }
 
 function allLights(power) {
-  if (busy) return;
+  if (busy || !connected) return;
   busy = true;
   status(power ? "All on…" : "All off…");
-  Deako.Api.all(power).then(function () {
+  Deako.all(power).then(function () {
     lights.forEach(function (d) { d.power = power; });
     if (topView() === LightsView) show();
   }).catch(function (err) {
     status("Failed: " + err.message, false);
   }).then(function () {
     busy = false;
-    setTimeout(refresh, 500);
+    setTimeout(refresh, 600);
   });
 }
 
-// ---------------------------------------------------------------- list + prompt views (from the TV remote framework)
+// Live state changes pushed by the gateway (e.g. someone flips a physical
+// switch) only come over TCP. Re-render when they arrive.
+Deako.onEvent = function () {
+  if (topView() === LightsView) { renderStatus(); show(); }
+};
+
+// ---------------------------------------------------------------- list + prompt views
 
 function ListView(title, items) {
-  var s = 0;
+  var s = Math.max(0, items.findIndex ? items.findIndex(function (i) { return !i.head; }) : 0);
+  if (s < 0) s = 0;
   var v = {
     title: function () { return title; },
     render: function (el) {
@@ -154,7 +192,7 @@ function ListView(title, items) {
       ul.className = "list";
       items.forEach(function (it, i) {
         var li = document.createElement("li");
-        li.className = i === s ? "sel" : "";
+        li.className = it.head ? "head" : (i === s ? "sel" : "");
         li.textContent = it.label;
         if (it.sub) {
           var sub = document.createElement("div");
@@ -167,11 +205,16 @@ function ListView(title, items) {
       el.appendChild(ul);
       if (ul.children[s]) ul.children[s].scrollIntoView({ block: "nearest" });
     },
+    move: function (d) {
+      if (!items.some(function (i) { return !i.head; })) return;
+      do { s = (s + d + items.length) % items.length; } while (items[s].head);
+      show();
+    },
     key: function (e) {
       switch (e.key) {
-        case "ArrowDown": s = (s + 1) % items.length; show(); return;
-        case "ArrowUp": s = (s - 1 + items.length) % items.length; show(); return;
-        case "Enter": return items[s] && items[s].run();
+        case "ArrowDown": return v.move(1);
+        case "ArrowUp": return v.move(-1);
+        case "Enter": return items[s] && !items[s].head && items[s].run();
         case "SoftRight": case "Backspace": return pop();
         default: return false;
       }
@@ -209,37 +252,58 @@ function MenuView() {
     { label: "All On", run: function () { pop(); allLights(true); } },
     { label: "All Off", run: function () { pop(); allLights(false); } },
     { label: "Refresh", run: function () { pop(); refresh(); } },
+    { label: "Reconnect", sub: Deako.label(), run: function () { pop(); connectAndLoad(); } },
+    { head: true, label: "CONNECTION" },
     {
-      label: "Controller address", sub: cfg.host,
-      run: function () { push(HostView()); },
+      label: "Mode", sub: modeLabel(cfg.mode),
+      run: function () { push(ModeView()); },
     },
+    {
+      label: "Gateway (direct)", sub: cfg.gateway,
+      run: function () { push(AddrView("Gateway", "Deako switch IP:port (the Wi-Fi switch)", "gateway", cfg.gateway, /^\d+\.\d+\.\d+\.\d+:\d+$/)); },
+    },
+    {
+      label: "Controller (HTTP)", sub: cfg.host,
+      run: function () { push(AddrView("Controller", "Computer running app.py, IP:port", "host", cfg.host, /^\d+\.\d+\.\d+\.\d+:\d+$/)); },
+    },
+    { head: true, label: "" },
     { label: "Exit", run: function () { window.close(); } },
   ]);
 }
 
-function HostView() {
+function modeLabel(m) {
+  return m === "tcp" ? "Direct TCP only" : m === "http" ? "HTTP controller only" : "Auto (TCP, then HTTP)";
+}
+
+function ModeView() {
   var cfg = Deako.Store.load();
-  return PromptView("Controller address",
-    "Home machine running the Lights controller, as IP:port (e.g. 192.168.1.60:8099)",
-    cfg.host, "text", function (val) {
-      if (!/^\d+\.\d+\.\d+\.\d+:\d+$/.test(val)) {
-        return status("Use the form 192.168.1.60:8099", false);
-      }
-      cfg.host = val;
-      Deako.Store.save(cfg);
-      viewStack = [LightsView];
-      show();
-      refresh();
-    });
+  function pick(m) { cfg.mode = m; Deako.Store.save(cfg); viewStack = [LightsView]; show(); connectAndLoad(); }
+  return ListView("Mode", [
+    { label: "Auto", sub: "Try direct TCP, fall back to HTTP", run: function () { pick("auto"); } },
+    { label: "Direct TCP only", sub: "Standalone, no computer", run: function () { pick("tcp"); } },
+    { label: "HTTP controller only", sub: "Needs app.py running", run: function () { pick("http"); } },
+  ]);
+}
+
+function AddrView(title, hint, field, value, re) {
+  return PromptView(title, hint, value, "text", function (val) {
+    if (!re.test(val)) return status("Use the form 192.168.1.60:8099", false);
+    var cfg = Deako.Store.load();
+    cfg[field] = val;
+    Deako.Store.save(cfg);
+    viewStack = [LightsView];
+    show();
+    connectAndLoad();
+  });
 }
 
 // ---------------------------------------------------------------- start
 
 viewStack = [LightsView];
 show();
-refresh();
+connectAndLoad();
 
-// Keep the state line honest while the list is up.
+// Poll as a safety net (TCP also pushes live EVENTs; HTTP relies on this).
 setInterval(function () {
   if (busy || document.hidden || topView() !== LightsView) return;
   refresh();

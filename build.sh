@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 
 SRC=src
 APP=Apps-directory/Deako-Lights
-FILES=(manifest.webmanifest index.html style.css app.js api.js icons/icon_56.png icons/icon_112.png)
+FILES=(manifest.webmanifest index.html style.css app.js deako.js icons/icon_56.png icons/icon_112.png)
 
 python3 - "$SRC" "$APP/application.zip" "${FILES[@]}" <<'PY'
 import sys, zipfile, os
