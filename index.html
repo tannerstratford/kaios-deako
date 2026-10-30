@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Install Deako Lights</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b1220;color:#e2e8f0;font:15px Arial,sans-serif}
+main{max-width:620px;margin:auto;padding:16px}h1{color:#ffb020;font-size:24px}h2{font-size:18px}
+.panel{background:#121d31;border:1px solid #243049;border-radius:10px;padding:14px;margin:12px 0}
+p,li{line-height:1.45}button{width:100%;padding:13px;border:0;border-radius:7px;background:#22c55e;color:#04121a;font-weight:bold;font-size:16px}
+button:disabled{opacity:.55}code{display:block;white-space:pre-wrap;word-break:break-word;padding:9px;margin:6px 0;background:#04121a;color:#22c55e;border-radius:6px}
+.warn{color:#fca5a5}
+</style>
+</head>
+<body>
+<main>
+  <h1>Install Deako Lights</h1>
+  <p>Open this page in the <b>phone browser</b>, then follow the two steps. This stages the installer and jumps to the System page, exactly like the OStore installer.</p>
+
+  <section class="panel">
+    <h2>Step 1 — stage</h2>
+    <button id="stage" type="button">Stage Deako Lights installer</button>
+    <pre id="status" role="status" aria-live="polite">Ready.</pre>
+  </section>
+
+  <section class="panel">
+    <h2>Step 2 — on the blank System page</h2>
+    <p>Type these two commands into the address bar, in order, in the same tab:</p>
+    <code>javascript:document.createElement('script')</code>
+    <code>javascript:document.write(name)</code>
+    <p>A black status bar shows the result. <b>INSTALL OK</b> means it worked. <b>INSTALL FAILED</b> shows the exact reason — copy that text back.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Before it will work</h2>
+    <p>The light controller must be running on your home machine, and the phone on the same Wi-Fi. Start it with:</p>
+    <code>cd ~/deako-app && ~/.deako-venv/bin/python app.py</code>
+    <p>The app defaults to <b>192.168.1.60:8099</b>. If that machine's IP changes, set the new one in the app: right soft key &gt; Controller address.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Package</h2>
+    <p><a href="Apps-directory/Deako-Lights/update.webmanifest">update manifest</a> · <a href="Apps-directory/Deako-Lights/application.zip">application.zip</a> · <a href="webapps.json">catalogue</a></p>
+    <p class="warn">The package is unsigned. If the phone's verifier requires a signed privileged package, this install is expected to fail — sign with <code>SIGN=1 ./build.sh</code> as with the TV remote.</p>
+  </section>
+</main>
+<script>
+(function () {
+  "use strict";
+  var button = document.getElementById("stage");
+  var status = document.getElementById("status");
+  function get(path, done) {
+    var r = new XMLHttpRequest();
+    r.open("GET", new URL(path, location.href).href + "?v=1.0", true);
+    r.onload = function () {
+      if (r.status < 200 || r.status >= 300 || !r.responseText) {
+        done(new Error("Could not load " + path + ": HTTP " + r.status));
+      } else { done(null, r.responseText); }
+    };
+    r.onerror = function () { done(new Error("Could not load " + path)); };
+    r.send();
+  }
+  button.onclick = function () {
+    button.disabled = true;
+    status.textContent = "Loading installer scripts…";
+    get("appsmanager.js", function (e1, wrapper) {
+      if (e1) { status.textContent = e1.message; button.disabled = false; return; }
+      get("installer.js", function (e2, installer) {
+        if (e2) { status.textContent = e2.message; button.disabled = false; return; }
+        var payload = wrapper + "\n" + installer;
+        if (payload.toLowerCase().indexOf("</scr" + "ipt") !== -1) {
+          status.textContent = "Installer cannot be staged safely."; button.disabled = false; return;
+        }
+        window.name = "<script>" + payload + "<" + "/script>";
+        if (window.name.length !== payload.length + 17) {
+          status.textContent = "The phone did not retain the full installer."; button.disabled = false; return;
+        }
+        status.textContent = "Staged. Opening the System page…";
+        location.href = "http://system.localhost/proxy.html";
+      });
+    });
+  };
+}());
+</script>
+</body>
+</html>

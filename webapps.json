@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "categories": [
+    "Utilities"
+  ],
+  "apps": [
+    {
+      "folder": "Deako-Lights",
+      "name": "Deako Lights",
+      "version": "1.0",
+      "category": "Utilities",
+      "description": "Control Deako smart switches on your Wi-Fi",
+      "sha256": "20777d596d9832732ae774689ecf459540b60eb7140476b67568fb3b1cdd70b5"
+    }
+  ]
+}

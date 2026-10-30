@@ -1,0 +1,72 @@
+/* Deako Lights — KaiOS 240x320 feature-phone layout: fixed header + status,
+   scrolling list in the middle, softkey bar pinned at the bottom. */
+:root {
+  --bg: #0f1115; --card: #1a1d24; --card-on: #2a2410; --text: #e8eaed;
+  --muted: #9aa0a8; --accent: #ffb020; --line: #2a2e37; --off: #3a3f4a; --err: #ff6b6b;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  display: flex; flex-direction: column;
+  background: var(--bg); color: var(--text);
+  font: 15px/1.3 "Open Sans", Arial, sans-serif;
+  overflow: hidden;
+}
+#title {
+  flex: none; padding: 7px 10px; font-size: 15px; font-weight: 700;
+  background: #16181d; border-bottom: 1px solid var(--line);
+}
+#status {
+  flex: none; padding: 5px 10px; font-size: 12px; color: var(--muted);
+  border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis;
+}
+#status.err { color: var(--err); white-space: normal; }
+#view { flex: 1; overflow-y: auto; }
+
+.list { list-style: none; }
+.list li {
+  padding: 11px 10px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 10px;
+}
+.list li .sub {
+  display: block; width: 100%; font-size: 11px; color: var(--muted); margin-top: 2px;
+}
+.list li.sel { background: #23262e; }
+
+/* light rows */
+.light.on { background: var(--card-on); }
+.light.on.sel { background: #39310f; }
+.dot {
+  width: 12px; height: 12px; border-radius: 50%; background: var(--off); flex: none;
+}
+.light.on .dot { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.name { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sw {
+  position: relative; width: 42px; height: 24px; flex: none; border-radius: 24px;
+  background: var(--off);
+}
+.sw.on { background: var(--accent); }
+.sw::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px;
+  border-radius: 50%; background: #fff;
+}
+.sw.on::after { left: 20px; }
+
+.empty { padding: 24px 16px; color: var(--muted); text-align: center; line-height: 1.5; }
+
+.form { padding: 14px 10px; }
+.form p { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+.form input {
+  width: 100%; padding: 9px; font-size: 15px; border: 1px solid var(--accent);
+  border-radius: 6px; background: #04121a; color: var(--text);
+}
+
+#softkeys {
+  flex: none; display: flex; background: #16181d; border-top: 1px solid var(--line);
+  font-size: 12px; font-weight: 700;
+}
+#softkeys span { flex: 1; padding: 7px 6px; text-align: center; color: var(--text); }
+#sk-left { text-align: left; }
+#sk-right { text-align: right; }
+#sk-center { color: var(--accent); }

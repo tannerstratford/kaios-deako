@@ -1,0 +1,23 @@
+{
+  "name": "Deako Lights",
+  "short_name": "Lights",
+  "description": "Control Deako smart switches on your Wi-Fi",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115",
+  "lang": "en-US",
+  "scope": "/",
+  "orientation": "portrait",
+  "id": "deakolights",
+  "version": "1.0",
+  "icons": [
+    { "src": "/icons/icon_56.png", "type": "image/png", "sizes": "56x56" },
+    { "src": "/icons/icon_112.png", "type": "image/png", "sizes": "112x112" }
+  ],
+  "b2g_features": {
+    "version": "1.0",
+    "origin": "deakolights",
+    "permissions": { "systemXHR": {} }
+  }
+}
