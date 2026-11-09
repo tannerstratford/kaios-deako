@@ -7,10 +7,10 @@
     {
       "folder": "Deako-Lights",
       "name": "Deako Lights",
-      "version": "2.2",
+      "version": "2.3",
       "category": "Utilities",
       "description": "Control Deako smart switches on your Wi-Fi",
-      "sha256": "0808e129fdb66fba5ad1c7ec633bdc7b4fcda445907859fea4b760c6545cdf8e"
+      "sha256": "7120da51a23b910ee3eb507e6f2c46e3e9e31ee74b1cd66f0ea936030b5c62b2"
     }
   ]
 }
